@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Viyana — Sıralı Pinli Harita (Final)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #map { height: 100%; }
+    .sidebar {
+      position: absolute; top: 12px; left: 12px; bottom: 12px; width: 420px; max-width: calc(100% - 24px);
+      z-index: 9999; background: rgba(255,255,255,0.97); border: 1px solid #ddd; border-radius: 16px;
+      overflow: hidden; box-shadow: 0 10px 26px rgba(0,0,0,0.14);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      display: flex; flex-direction: column;
+    }
+    .sidebar header { padding: 12px 14px; border-bottom: 1px solid #e7e7e7; }
+    .sidebar header h1 { font-size: 14px; margin: 0 0 6px 0; }
+    .sidebar header p { font-size: 12px; margin: 0; color:#333; line-height:1.35; }
+    .tabs { display:flex; gap:8px; padding: 10px 12px; border-bottom: 1px solid #eee; flex-wrap: wrap; }
+    .tab { border: 1px solid #ddd; background:#fff; padding: 6px 10px; border-radius: 999px; font-size: 12px; cursor: pointer; user-select:none; }
+    .tab.active { border-color:#111; }
+    .content { padding: 10px 12px; overflow:auto; }
+    .day-title { font-weight: 800; font-size: 13px; margin: 10px 0 6px 0; }
+    .meta { font-size: 11px; color:#444; margin-bottom: 8px; }
+    .stop { display:flex; gap:10px; padding: 8px 8px; border: 1px solid #eee; border-radius: 12px; margin-bottom: 8px; background: #fff; }
+    .num { width: 28px; height: 28px; border-radius: 10px; display:flex; align-items:center; justify-content:center; font-weight: 800; font-size: 12px; color:#111; background:#f2f2f2; flex: 0 0 auto; }
+    .stop .txt { flex: 1 1 auto; }
+    .stop .name { font-weight: 700; font-size: 12px; margin: 0 0 3px 0; }
+    .stop .note { font-size: 11px; margin: 0; color:#444; line-height:1.35; }
+    .stop button { border: 1px solid #ddd; background:#fff; border-radius: 10px; padding: 6px 8px; font-size: 11px; cursor: pointer; white-space: nowrap; }
+    .small { font-size: 11px; color:#555; }
+    .legend { padding: 10px 12px; border-top: 1px solid #eee; }
+    .legend .row { display:flex; gap:8px; align-items:center; margin: 6px 0; }
+    .dot { width: 10px; height: 10px; border-radius: 999px; }
+    @media (max-width: 720px) {
+      .sidebar { width: calc(100% - 24px); }
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="sidebar">
+    <header>
+      <h1>Viyana — Sıralı Pinli Harita (Final)</h1>
+      <p><b>Home:</b> Lindengasse 12, 1070 Wien, Austria</p>
+      <p class="small" style="margin-top:6px;">Pinler otomatik konumlanır (10–30 sn). Gün sekmesinden “Haritada Göster” ile o günün rota çizgisi + pinlerine zoom yap.</p>
+    </header>
+
+    <div class="tabs" id="tabs"></div>
+    <div class="content" id="content"></div>
+
+    <div class="legend">
+      <div class="row"><span class="dot" style="background:#111"></span><span class="small">Day 1</span></div>
+      <div class="row"><span class="dot" style="background:#2b6cb0"></span><span class="small">Day 2</span></div>
+      <div class="row"><span class="dot" style="background:#2f855a"></span><span class="small">Day 3</span></div>
+      <div class="row"><span class="dot" style="background:#b7791f"></span><span class="small">Day 4</span></div>
+      <div class="row"><span class="dot" style="background:#d53f8c"></span><span class="small">Home</span></div>
+      <div class="row"><span class="dot" style="background:#805ad5"></span><span class="small">Travel (Airport)</span></div>
+      <div class="row"><span class="dot" style="background:#6b46c1"></span><span class="small">Alternatif</span></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const itinerary = [{"day": "18 Mart (Çarşamba) — Varış Akşamı", "time_window": "Akşam varış • Hafif yürüyüş", "stops": [{"t": "~20:00", "name": "Konaklama (Home Base) — Lindengasse 12, 1070", "category": "Home", "note": "Eve/konaklamaya varış (tahmini)."}, {"t": "20:30", "name": "Stephansdom (St. Stephen’s Cathedral)", "category": "Day 1", "note": "Merkezde kısa ‘geri döndük’ turu."}, {"t": "21:00", "name": "Graben", "category": "Day 1", "note": "Işıklar altında yürüyüş."}, {"t": "21:20", "name": "Kohlmarkt", "category": "Day 1", "note": "Vitrinler + şehir hissi."}, {"t": "21:45", "name": "Café Central", "category": "Day 1", "note": "Sıcak mola (tatlı/kahve)."}, {"t": "23:00", "name": "Konaklama (Home Base) — Lindengasse 12, 1070", "category": "Home", "note": "Eve dönüş."}], "alts": [{"t": "21:45", "name": "Demel", "category": "Alternatif", "note": "Café Central yerine daha kısa tatlı molası."}, {"t": "22:30", "name": "The Sign Lounge", "category": "Alternatif", "note": "Enerji varsa 1–2 kokteyl."}]}, {"day": "19 Mart (Perşembe) — Klimt & Şef Masası", "time_window": "Sabah erken • Sanat + akşam yemeği", "stops": [{"t": "08:30", "name": "Konaklama (Home Base) — Lindengasse 12, 1070", "category": "Home", "note": "Çıkış."}, {"t": "09:00", "name": "Schloss Belvedere (Belvedere Palace)", "category": "Day 2", "note": "Klimt ‘The Kiss’ ana hedef. 2–2.5 saat."}, {"t": "12:00", "name": "MuseumsQuartier Wien", "category": "Day 2", "note": "MQ: kahve + avlu."}, {"t": "13:15", "name": "Albertina Museum", "category": "Day 2", "note": "Tek müze, derinleş. 1.5–2 saat."}, {"t": "15:30", "name": "Spittelberg", "category": "Day 2", "note": "Sokak/fotoğraf yürüyüşü."}, {"t": "18:30", "name": "Ki Koba", "category": "Day 2", "note": "Rezervasyon. Paylaşımlık tabak + sake."}, {"t": "22:00", "name": "Konaklama (Home Base) — Lindengasse 12, 1070", "category": "Home", "note": "Eve dönüş."}], "alts": [{"t": "18:30", "name": "Mochi Wien", "category": "Alternatif", "note": "Ki Koba alternatifi (benzer vibe)."}, {"t": "21:00", "name": "Moby Dick Bar Vienna", "category": "Alternatif", "note": "Speakeasy kokteyl."}, {"t": "21:00", "name": "The Sign Lounge", "category": "Alternatif", "note": "Klasik kokteyl bar."}]}, {"day": "20 Mart (Cuma) — Şehir Hissi + Prater + Gece", "time_window": "Müzesiz gün • Bol yürüyüş • Akşam biletli etkinlik", "stops": [{"t": "08:30", "name": "Konaklama (Home Base) — Lindengasse 12, 1070", "category": "Home", "note": "Çıkış."}, {"t": "09:00", "name": "Naschmarkt", "category": "Day 3", "note": "Kahvaltı + pazar turu."}, {"t": "10:30", "name": "Hofburg Palace", "category": "Day 3", "note": "Avlular + çevre yürüyüşü."}, {"t": "12:30", "name": "Donaukanal (Danube Canal)", "category": "Day 3", "note": "Yürüyüş + street art + foto."}, {"t": "15:00", "name": "Wiener Riesenrad (Prater Ferris Wheel)", "category": "Day 3", "note": "Prater + dönme dolap."}, {"t": "19:00", "name": "Wiener Staatsoper (Vienna State Opera)", "category": "Day 3", "note": "Akşam: opera/konser (seçim)."}, {"t": "22:30", "name": "Konaklama (Home Base) — Lindengasse 12, 1070", "category": "Home", "note": "Eve dönüş."}], "alts": [{"t": "19:30", "name": "Musikverein Wien", "category": "Alternatif", "note": "Konser alternatifi."}, {"t": "19:30", "name": "Wiener Konzerthaus", "category": "Alternatif", "note": "Konser alternatifi."}, {"t": "20:00", "name": "7 Stern Bräu", "category": "Alternatif", "note": "Biletli etkinlik yerine lokal bira/pub."}]}, {"day": "21 Mart (Cumartesi) — Vintage + Bira + Dönüş", "time_window": "Sabah bit pazarı • Öğlen pub • Havalimanı", "stops": [{"t": "08:30", "name": "Konaklama (Home Base) — Lindengasse 12, 1070", "category": "Home", "note": "Çıkış."}, {"t": "09:00", "name": "Flohmarkt am Naschmarkt", "category": "Day 4", "note": "Cumartesi bit pazarı."}, {"t": "11:00", "name": "1516 Brewing Company", "category": "Day 4", "note": "Öğlen bira + pub yemeği."}, {"t": "13:30", "name": "Konaklama (Home Base) — Lindengasse 12, 1070", "category": "Home", "note": "Toparlanma / çıkış."}, {"t": "15:00", "name": "Vienna International Airport (VIE)", "category": "Travel", "note": "Havalimanı (tahmini)."}], "alts": [{"t": "11:00", "name": "7 Stern Bräu", "category": "Alternatif", "note": "1516 yerine."}, {"t": "12:15", "name": "Café Central", "category": "Alternatif", "note": "Zaman kalırsa final kahvesi."}]}];
+    const allPlaces = [{"name": "Konaklama (Home Base) — Lindengasse 12, 1070", "categories": ["Home"], "note": "Saat: ~20:00 • Eve/konaklamaya varış (tahmini). • Saat: 23:00"}, {"name": "Stephansdom (St. Stephen’s Cathedral)", "categories": ["Day 1"], "note": "Saat: 20:30 • Merkezde kısa ‘geri döndük’ turu."}, {"name": "Graben", "categories": ["Day 1"], "note": "Saat: 21:00 • Işıklar altında yürüyüş."}, {"name": "Kohlmarkt", "categories": ["Day 1"], "note": "Saat: 21:20 • Vitrinler + şehir hissi."}, {"name": "Café Central", "categories": ["Alternatif", "Day 1"], "note": "Saat: 21:45 • Sıcak mola (tatlı/kahve). • Saat: 12:15"}, {"name": "Demel", "categories": ["Alternatif"], "note": "Saat: 21:45 • Café Central yerine daha kısa tatlı molası."}, {"name": "The Sign Lounge", "categories": ["Alternatif"], "note": "Saat: 22:30 • Enerji varsa 1–2 kokteyl. • Saat: 21:00"}, {"name": "Schloss Belvedere (Belvedere Palace)", "categories": ["Day 2"], "note": "Saat: 09:00 • Klimt ‘The Kiss’ ana hedef. 2–2.5 saat."}, {"name": "MuseumsQuartier Wien", "categories": ["Day 2"], "note": "Saat: 12:00 • MQ: kahve + avlu."}, {"name": "Albertina Museum", "categories": ["Day 2"], "note": "Saat: 13:15 • Tek müze, derinleş. 1.5–2 saat."}, {"name": "Spittelberg", "categories": ["Day 2"], "note": "Saat: 15:30 • Sokak/fotoğraf yürüyüşü."}, {"name": "Ki Koba", "categories": ["Day 2"], "note": "Saat: 18:30 • Rezervasyon. Paylaşımlık tabak + sake."}, {"name": "Mochi Wien", "categories": ["Alternatif"], "note": "Saat: 18:30 • Ki Koba alternatifi (benzer vibe)."}, {"name": "Moby Dick Bar Vienna", "categories": ["Alternatif"], "note": "Saat: 21:00 • Speakeasy kokteyl."}, {"name": "Naschmarkt", "categories": ["Day 3"], "note": "Saat: 09:00 • Kahvaltı + pazar turu."}, {"name": "Hofburg Palace", "categories": ["Day 3"], "note": "Saat: 10:30 • Avlular + çevre yürüyüşü."}, {"name": "Donaukanal (Danube Canal)", "categories": ["Day 3"], "note": "Saat: 12:30 • Yürüyüş + street art + foto."}, {"name": "Wiener Riesenrad (Prater Ferris Wheel)", "categories": ["Day 3"], "note": "Saat: 15:00 • Prater + dönme dolap."}, {"name": "Wiener Staatsoper (Vienna State Opera)", "categories": ["Day 3"], "note": "Saat: 19:00 • Akşam: opera/konser (seçim)."}, {"name": "Musikverein Wien", "categories": ["Alternatif"], "note": "Saat: 19:30 • Konser alternatifi."}, {"name": "Wiener Konzerthaus", "categories": ["Alternatif"], "note": "Saat: 19:30 • Konser alternatifi."}, {"name": "7 Stern Bräu", "categories": ["Alternatif"], "note": "Saat: 20:00 • Biletli etkinlik yerine lokal bira/pub. • Saat: 11:00"}, {"name": "Flohmarkt am Naschmarkt", "categories": ["Day 4"], "note": "Saat: 09:00 • Cumartesi bit pazarı."}, {"name": "1516 Brewing Company", "categories": ["Day 4"], "note": "Saat: 11:00 • Öğlen bira + pub yemeği."}, {"name": "Vienna International Airport (VIE)", "categories": ["Travel"], "note": "Saat: 15:00 • Havalimanı (tahmini)."}];
+    const geoAlias = {"Konaklama (Home Base) — Lindengasse 12, 1070": "Lindengasse 12, 1070 Wien, Austria"};
+    const viennaCenter = [48.2082, 16.3738];
+
+    const map = L.map('map', { zoomControl: true }).setView(viennaCenter, 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const COLOR = {
+      "Day 1": "#111",
+      "Day 2": "#2b6cb0",
+      "Day 3": "#2f855a",
+      "Day 4": "#b7791f",
+      "Home": "#d53f8c",
+      "Travel": "#805ad5",
+      "Alternatif": "#6b46c1"
+    };
+
+    function makeIcon(label, catKey) {
+      const c = COLOR[catKey] || "#111";
+      const html = `
+        <div style="
+          width:30px;height:30px;border-radius:11px;
+          background:${c}; color:#fff; font-weight:800; font-size:12px;
+          display:flex;align-items:center;justify-content:center;
+          box-shadow:0 6px 14px rgba(0,0,0,0.22);
+          border:2px solid rgba(255,255,255,0.9);
+        ">${label}</div>
+      `;
+      return L.divIcon({ html, className: "", iconSize:[30,30], iconAnchor:[15,15] });
+    }
+
+    function gmapsLink(name, lat, lon) {
+      const q = encodeURIComponent(name + " " + lat + "," + lon);
+      return `https://www.google.com/maps/search/?api=1&query=${q}`;
+    }
+
+    async function geocode(placeName) {
+      const query = geoAlias[placeName] || (placeName + ", Vienna, Austria");
+      const url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(query);
+      const res = await fetch(url, {
+        headers: {
+          "Accept": "application/json",
+          "User-Agent": "ViennaPins/FINAL (personal trip map)"
+        }
+      });
+      if (!res.ok) throw new Error("Geocode error " + res.status);
+      const data = await res.json();
+      if (!data || !data.length) return null;
+      return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+    }
+
+    const coordByName = new Map();
+    const markerGroups = new Map();
+    const routeLines = new Map();
+
+    function getGroup(key) {
+      if (!markerGroups.has(key)) {
+        const g = L.layerGroup().addTo(map);
+        markerGroups.set(key, g);
+      }
+      return markerGroups.get(key);
+    }
+
+    function popupHtml(name, note, categories, lat, lon) {
+      const link = gmapsLink(name, lat, lon);
+      return `
+        <div style="min-width:240px">
+          <div style="font-weight:800; margin-bottom:4px;">${name}</div>
+          <div style="font-size:12px; margin-bottom:6px;"><b>Kategori:</b> ${(categories||[]).join(", ")}</div>
+          ${note ? `<div style="font-size:12px; margin-bottom:8px;">${note}</div>` : ""}
+          <a href="${link}" target="_blank" rel="noopener">Google Maps'te aç</a>
+        </div>
+      `;
+    }
+
+    // UI
+    const tabsEl = document.getElementById("tabs");
+    const contentEl = document.getElementById("content");
+    let activeIndex = 0;
+
+    function renderTabs() {
+      tabsEl.innerHTML = "";
+      itinerary.forEach((d, idx) => {
+        const btn = document.createElement("div");
+        btn.className = "tab" + (idx===activeIndex ? " active" : "");
+        btn.textContent = d.day.split("—")[0].trim();
+        btn.onclick = () => {
+          activeIndex = idx;
+          renderTabs();
+          renderContent();
+        };
+        tabsEl.appendChild(btn);
+      });
+    }
+
+    function renderContent() {
+      const d = itinerary[activeIndex];
+      const dayKey = "Day " + (activeIndex+1);
+      contentEl.innerHTML = "";
+
+      const title = document.createElement("div");
+      title.className = "day-title";
+      title.textContent = d.day;
+      contentEl.appendChild(title);
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = d.time_window;
+      contentEl.appendChild(meta);
+
+      const showBtn = document.createElement("button");
+      showBtn.textContent = "Haritada Göster (o gün)";
+      showBtn.style.cssText = "margin: 0 0 10px 0; padding: 8px 10px; border-radius: 12px; border:1px solid #ddd; background:#fff; cursor:pointer; font-size:12px;";
+      showBtn.onclick = () => zoomToDay(dayKey);
+      contentEl.appendChild(showBtn);
+
+      d.stops.forEach((s, i) => {
+        const row = document.createElement("div");
+        row.className = "stop";
+        row.innerHTML = `
+          <div class="num">${i+1}</div>
+          <div class="txt">
+            <p class="name">${s.t ? `<b>${s.t}</b> — ` : ""}${s.name}</p>
+            <p class="note">${s.note || ""}</p>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <button data-name="${s.name}">Pin</button>
+          </div>
+        `;
+        row.querySelector('button[data-name]').onclick = () => focusPlace(s.name);
+        contentEl.appendChild(row);
+      });
+
+      if (d.alts && d.alts.length) {
+        const altTitle = document.createElement("div");
+        altTitle.className = "day-title";
+        altTitle.style.marginTop = "14px";
+        altTitle.textContent = "Alternatifler";
+        contentEl.appendChild(altTitle);
+
+        d.alts.forEach((s) => {
+          const row = document.createElement("div");
+          row.className = "stop";
+          row.innerHTML = `
+            <div class="num" style="background:#f6f0ff;border:1px solid #eadcff;">★</div>
+            <div class="txt">
+              <p class="name">${s.t ? `<b>${s.t}</b> — ` : ""}${s.name}</p>
+              <p class="note">${s.note || ""}</p>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <button data-name="${s.name}">Pin</button>
+            </div>
+          `;
+          row.querySelector('button[data-name]').onclick = () => focusPlace(s.name);
+          contentEl.appendChild(row);
+        });
+      }
+    }
+
+    function focusPlace(name) {
+      const c = coordByName.get(name);
+      if (!c) return;
+      map.setView([c.lat, c.lon], 16, { animate: true });
+      if (c.marker) c.marker.openPopup();
+    }
+
+    function zoomToDay(dayKey) {
+      const g = markerGroups.get(dayKey);
+      if (!g) return;
+      const bounds = [];
+      g.eachLayer(l => l.getLatLng && bounds.push(l.getLatLng()));
+      if (bounds.length) map.fitBounds(L.latLngBounds(bounds), { padding:[80,80] });
+
+      markerGroups.forEach((group, key) => {
+        const keep = (key === dayKey || key === "Alternatif" || key === "Home" || key === "Travel");
+        if (keep) {
+          if (!map.hasLayer(group)) group.addTo(map);
+        } else {
+          if (map.hasLayer(group)) map.removeLayer(group);
+        }
+      });
+
+      routeLines.forEach((line, key) => {
+        if (key === dayKey) {
+          if (!map.hasLayer(line)) line.addTo(map);
+        } else {
+          if (map.hasLayer(line)) map.removeLayer(line);
+        }
+      });
+    }
+
+    async function build() {
+      // Geocode all unique places
+      for (let i=0; i<allPlaces.length; i++) {
+        const p = allPlaces[i];
+        try {
+          const geo = await geocode(p.name);
+          if (!geo) continue;
+          coordByName.set(p.name, { lat: geo.lat, lon: geo.lon });
+          await new Promise(r => setTimeout(r, 380));
+        } catch (e) {
+          console.warn("Geocode failed:", p.name, e);
+        }
+      }
+
+      const overlay = {};
+
+      const homeGroup = getGroup("Home");
+      overlay["Home (Konaklama)"] = homeGroup;
+
+      const travelGroup = getGroup("Travel");
+      overlay["Travel (Airport)"] = travelGroup;
+
+      // Home marker
+      const hc = coordByName.get("Konaklama (Home Base) — Lindengasse 12, 1070");
+      if (hc) {
+        const icon = makeIcon("🏠", "Home");
+        const m = L.marker([hc.lat, hc.lon], { icon });
+        m.bindPopup(popupHtml("Konaklama (Home Base) — Lindengasse 12, 1070", "Lindengasse 12, 1070 Wien, Austria", ["Home"], hc.lat, hc.lon));
+        m.addTo(homeGroup);
+        coordByName.set("Konaklama (Home Base) — Lindengasse 12, 1070", {...hc, marker:m});
+      }
+
+      // Airport marker
+      const ac = coordByName.get("Vienna International Airport (VIE)");
+      if (ac) {
+        const icon = makeIcon("✈️", "Travel");
+        const m = L.marker([ac.lat, ac.lon], { icon });
+        m.bindPopup(popupHtml("Vienna International Airport (VIE)", "Dönüş günü hedef", ["Travel"], ac.lat, ac.lon));
+        m.addTo(travelGroup);
+        coordByName.set("Vienna International Airport (VIE)", {...ac, marker:m});
+      }
+
+      // Day markers + lines
+      for (let di=0; di<itinerary.length; di++) {
+        const d = itinerary[di];
+        const dayKey = "Day " + (di+1);
+        const group = getGroup(dayKey);
+        overlay[dayKey + " — " + d.day.split("—")[0].trim()] = group;
+
+        const linePts = [];
+        for (let si=0; si<d.stops.length; si++) {
+          const s = d.stops[si];
+          const c = coordByName.get(s.name);
+          if (!c) continue;
+
+          // don't duplicate Home/Travel markers in day layers
+          if (s.category === "Home" || s.category === "Travel") {
+            linePts.push([c.lat, c.lon]);
+            continue;
+          }
+
+          const icon = makeIcon(String(si+1), dayKey);
+          const note = (s.t ? ("Saat: " + s.t + " • ") : "") + (s.note || "");
+          const m = L.marker([c.lat, c.lon], { icon });
+          m.bindPopup(popupHtml(s.name, note, [dayKey], c.lat, c.lon));
+          m.addTo(group);
+          coordByName.set(s.name, {...c, marker:m});
+          linePts.push([c.lat, c.lon]);
+        }
+
+        if (linePts.length >= 2) {
+          routeLines.set(dayKey, L.polyline(linePts, { color: COLOR[dayKey], weight: 4, opacity: 0.75 }));
+        }
+
+        // alternates
+        if (d.alts && d.alts.length) {
+          const altGroup = getGroup("Alternatif");
+          overlay["Alternatif"] = altGroup;
+          for (const s of d.alts) {
+            const c = coordByName.get(s.name);
+            if (!c) continue;
+            const icon = makeIcon("★", "Alternatif");
+            const note = (s.t ? ("Saat: " + s.t + " • ") : "") + (s.note || "");
+            const m = L.marker([c.lat, c.lon], { icon });
+            m.bindPopup(popupHtml(s.name, note, ["Alternatif"], c.lat, c.lon));
+            m.addTo(altGroup);
+            coordByName.set(s.name, {...c, marker:m});
+          }
+        }
+      }
+
+      L.control.layers(null, overlay, { collapsed: false }).addTo(map);
+
+      // Fit to all markers
+      const allLatLng = [];
+      markerGroups.forEach(g => g.eachLayer(l => l.getLatLng && allLatLng.push(l.getLatLng())));
+      if (allLatLng.length) map.fitBounds(L.latLngBounds(allLatLng), { padding:[90,90] });
+
+      renderTabs(); renderContent();
+      zoomToDay("Day 1");
+    }
+
+    build();
+  </script>
+</body>
+</html>
